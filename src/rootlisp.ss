@@ -5,6 +5,7 @@
         ((eq? (caar env) val) (cadar env))
         (#t (lookup val (cdr env))))))
 
+; turns the special symbols #t and #f into just atoms, like in McCarthy's OG.
 (define oldbool (lambda (x) 
     (cond 
         ((eq? x #t) 't)
@@ -24,6 +25,8 @@
         ; match procedure calls
         ((atom? (car exp))
             (cond
+                ((eq? '+ (car exp)) (apply + (eval-list (cdr exp) env)))
+                ((eq? '* (car exp)) (apply * (eval-list (cdr exp) env)))
                 ((eq? 'quote (car exp)) (cadr exp))
                 ((eq? 'atom? (car exp)) (atom-atom? (eval (cadr exp) env)))
                 ((eq? 'eq? (car exp)) (atom-eq? (eval (cadr exp) env) 
@@ -33,10 +36,56 @@
                 ((eq? 'cons (car exp)) (cons (eval (cadr exp) env)
                                              (eval (caddr exp) env)))
                 ((eq? 'cond (car exp)) (eval-cond (cdr exp) env))
+                ; a lambda represents a delayed computation, thus nothing should
+                ; happen until it is invoked (we simply pass it through)
+                ((eq? 'lambda (car exp)) exp)
+                ; we don't recognize the atom as a built-in, so look it up in
+                ; the environment (it will be whatever a user has labeled), and
+                ; evaluate again with a call to whatever was looked up
+                (#t (eval 
+                        (cons (lookup (car exp) env) (cdr exp)) 
+                        env))
             )
         )
+        ; the last part is for the matching of lambdas and define.
+        ;
+        ; The invocation of a lambda: ((lambda (params*) body) args*). We'll
+        ; want to replace the parameters in the body of the lambda with the
+        ; values from the arguments. One obvious way of achieving this is
+        ; through extending the environment throughout the invocation of the
+        ; lambda's body, yet doing this sublty leads to dynamic scoping. For
+        ; example, suppose we have (defun blah (x) (+ x 3))
+        ; ((label blah (lambda (x) (+ x 3))) ((lambda (x) (* x 5)) 9))
+        ((eq? 'lambda (caar exp)) 
+            (eval (caddar exp) 
+                  ; zip the params up with the arguments and add them to the
+                  ; environment. But *also*, the arguments to the function
+                  ; themselves need to be evaluated, like with 
+                  ;
+                  ; ((lambda (x) (* x x)) (+ 3 4))
+                  (append (zip (cadar exp) 
+                               (eval-list (cdr exp) env))
+                           env)))
+        ; with a label we simply add the lambda to the environment so that it
+        ; can be referred to, and then we evaluate the lambda in that
+        ; environment using the arguments passed to label
+        ;
+        ; ((label name lambda) args*)
+        ((eq? 'label (caar exp)) (eval (cons (caddar exp) (cdr exp))
+                                       (cons (list (cadar exp) (caddar exp)) env)))
     )
 ))
+
+(define eval-list (lambda (exps env)
+    ; construct a new list of the evaluated expressions
+    (if (eq? exps '())
+        '()
+        (cons (eval (car exps) env) (eval-list (cdr exps) env)))))
+
+(define zip (lambda (l1 l2)
+    (if (or (eq? l1 '()) (eq? l2 '()))
+        '()
+        (cons (list (car l1) (car l2)) (zip (cdr l1) (cdr l2))))))
 
 ; different than usual cond, one fewer levels of nesting, expects 't or 'f from
 ; predicates, and returns 'error for anything else.
