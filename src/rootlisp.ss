@@ -18,7 +18,66 @@
 (define atom-atom? (lambda (x)
     (oldbool (atom? x))))
 
+(define read-program (lambda () 
+    (read (open-input-file "src/my.lisp"))))
+
+; runs my lisp
+(define run (lambda ()
+    (debug-program)
+    (eval-program (read-program)
+                  '()
+                  '())))
+
+(define debug-program (lambda ()
+    (let ((program (read-program)))
+        (cond
+            ((eq? '() (filter 
+                        (lambda (x) (eq? 'main (car x)))
+                        program))
+                (write "NO MAIN FOUND")
+            )))))
+
+; Like eval but designed to evaluate in the context of an entire program's definitions. So, it takes a list of sexps, and we have a few special forms we support at the top-level. (define ...) will be our main workhorse, as it lets us create variable values and most importantly, functions.
+; we expect one (and only one) "main" form, (main exp), where the code in exp is eval-ed within the environment. This evaluation is always done after the entire environment has been constructed.
+(define eval-program (lambda (exps env main)
+    (pretty-print env)
+    (cond
+        ; the base case is that we should evaluate the main function, which
+        ; should hopefully be defined
+        ((eq? '() exps) (eval main env))
+        ; ((define name exp) ...)
+        ; or ((define (name args) body)) for a function
+        ((eq? 'define (caar exps))
+            (cond 
+                ((atom? (cadar exps))
+                    (eval-program (cdr exps) 
+                                (cons (list (cadar exps) (caddar exps)) env)
+                                main))
+                (#t (write "ERRRORRRR"))
+            ))
+        ; ((main exp) ...)
+        ; add the main function to the body but continue evaluating the environment
+        ((eq? 'main (caar exps))
+            (eval-program (cdr exps)
+                          env
+                          (main-body-to-function (cadar exps))))
+        (#t 'error)
+    )
+))
+
+; convert the body of the main form into a no-argument lambda so that our eval
+; will actually evaluate it
+(define main-body-to-function (lambda (body)
+    (list (list 'lambda '() body))))
+
+; returns a name/lambda pair defining the function, to be added to the
+; environment
+(define define-function-shorthand (lambda (exp)
+    ; exp == (define (funcname args*) body)
+    (list (caadr exp) (list 'lambda (cadadr exp) (caddr exp)))))
+
 (define eval (lambda (exp env)
+    (pretty-print exp)
     (cond
         ((number? exp) exp)
         ((atom? exp) (lookup exp env))
@@ -36,8 +95,9 @@
                 ((eq? 'cons (car exp)) (cons (eval (cadr exp) env)
                                              (eval (caddr exp) env)))
                 ((eq? 'cond (car exp)) (eval-cond (cdr exp) env))
-                ; a lambda represents a delayed computation, thus nothing should
-                ; happen until it is invoked (we simply pass it through)
+                ; don't evaluate lambdas directly; this is useful so that we can
+                ; support functions or forms that bind lambdas to names, like
+                ; (let (f (lambda (x) (* x x)))).
                 ((eq? 'lambda (car exp)) exp)
                 ; we don't recognize the atom as a built-in, so look it up in
                 ; the environment (it will be whatever a user has labeled), and
@@ -111,6 +171,18 @@
                 (#t 'error)))
     )
 ))
+
+(define compile (lambda (exps)
+    (cond 
+        ((number? exp) exp)
+        ((atom? exp) (lookup exp env))
+        ; match procedure calls
+        ((atom? (car exp))
+            (cond 
+                ((eq? 'cons (car exp)) (comp-cons (cdr exp))))))))
+
+(define comp-cons (lambda (exp)
+    (car exp)))
 
 ; ; allows pattern matching of lists
 ; ; (x ..) ; matches first
