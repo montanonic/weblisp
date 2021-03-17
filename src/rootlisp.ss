@@ -25,7 +25,7 @@
 (define run (lambda ()
     (debug-program)
     (eval-program (read-program)
-                  '()
+                  '((nil ()))
                   '())))
 
 (define debug-program (lambda ()
@@ -37,21 +37,31 @@
                 (write "NO MAIN FOUND")
             )))))
 
+(define list? (lambda (x)
+    (not (atom? x))))
+
 ; Like eval but designed to evaluate in the context of an entire program's definitions. So, it takes a list of sexps, and we have a few special forms we support at the top-level. (define ...) will be our main workhorse, as it lets us create variable values and most importantly, functions.
 ; we expect one (and only one) "main" form, (main exp), where the code in exp is eval-ed within the environment. This evaluation is always done after the entire environment has been constructed.
 (define eval-program (lambda (exps env main)
-    (pretty-print env)
+    ; (pretty-print env)
     (cond
         ; the base case is that we should evaluate the main function, which
         ; should hopefully be defined
-        ((eq? '() exps) (eval main env))
-        ; ((define name exp) ...)
-        ; or ((define (name args) body)) for a function
+        ((eq? '() exps) 
+            ; (pretty-print "EVAL PROGRAM:")
+            ; add the environment to the environment, so that it can be looked up!
+            (eval main (cons (list '__env__ env) env)))
         ((eq? 'define (caar exps))
             (cond 
+                ; ((define name exp) ...)
                 ((atom? (cadar exps))
                     (eval-program (cdr exps) 
                                 (cons (list (cadar exps) (caddar exps)) env)
+                                main))
+                ; ((define (name args) body)), this is the function form
+                ((list? (cadar exps))
+                    (eval-program (cdr exps) 
+                                (cons (get-env-pair-for-define-function-shorthand (car exps)) env)
                                 main))
                 (#t (write "ERRRORRRR"))
             ))
@@ -60,7 +70,9 @@
         ((eq? 'main (caar exps))
             (eval-program (cdr exps)
                           env
-                          (main-body-to-function (cadar exps))))
+                          (cadar exps)
+                        ; (main-body-to-function (cadar exps))
+            ))
         (#t 'error)
     )
 ))
@@ -72,12 +84,13 @@
 
 ; returns a name/lambda pair defining the function, to be added to the
 ; environment
-(define define-function-shorthand (lambda (exp)
+(define get-env-pair-for-define-function-shorthand (lambda (exp)
     ; exp == (define (funcname args*) body)
-    (list (caadr exp) (list 'lambda (cadadr exp) (caddr exp)))))
+    (list (caadr exp) (list 'lambda (cdadr exp) (caddr exp)))))
 
 (define eval (lambda (exp env)
-    (pretty-print exp)
+    ; (pretty-print exp)
+    ; (pretty-print env)
     (cond
         ((number? exp) exp)
         ((atom? exp) (lookup exp env))
@@ -99,6 +112,8 @@
                 ; support functions or forms that bind lambdas to names, like
                 ; (let (f (lambda (x) (* x x)))).
                 ((eq? 'lambda (car exp)) exp)
+                ; allow the language to itself call eval with a given environment, strictly evaluating both arguments first
+                ((eq? 'eval (car exp)) (eval (eval (cadr exp) env) (eval (caddr exp) env)))
                 ; we don't recognize the atom as a built-in, so look it up in
                 ; the environment (it will be whatever a user has labeled), and
                 ; evaluate again with a call to whatever was looked up
@@ -172,17 +187,17 @@
     )
 ))
 
-(define compile (lambda (exps)
-    (cond 
-        ((number? exp) exp)
-        ((atom? exp) (lookup exp env))
-        ; match procedure calls
-        ((atom? (car exp))
-            (cond 
-                ((eq? 'cons (car exp)) (comp-cons (cdr exp))))))))
+; (define compile (lambda (exps)
+;     (cond 
+;         ((number? exp) exp)
+;         ((atom? exp) (lookup exp env))
+;         ; match procedure calls
+;         ((atom? (car exp))
+;             (cond 
+;                 ((eq? 'cons (car exp)) (comp-cons (cdr exp))))))))
 
-(define comp-cons (lambda (exp)
-    (car exp)))
+; (define comp-cons (lambda (exp)
+;     (car exp)))
 
 ; ; allows pattern matching of lists
 ; ; (x ..) ; matches first
