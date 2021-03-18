@@ -12,25 +12,33 @@
           (f (car list)) (cons (car list) (filter f (cdr list)))
           't (filter f (cdr list))))
 
-; have (apply fn (arg+))
-; want (fn arg1 ... argn)
-; (define (apply fn args)
-;     (cond (null? args) nil
-;           (cons)))
+; have (apply fn (arg1 ... argn))
+; want (fn arg1 ... argn), and for it to be evaluated
+(define (apply f args)
+    (eval 
+        (rev-reduce (cons f nil) (lambda (s arg) (cons arg s)) args)
+        ; evaluate the expression within the current environment
+        __env__))
+
+; provide a function from (state elem) to state
+(define (reduce state f data)
+    (cond (null? data) state
+          't (reduce (f state (car data)) f (cdr data))))
+
+; just a reduce with a reverse at the end
+(define (rev-reduce state f data)
+    (reverse (reduce state f data)))
 
 (define (reverse list)
-    (reverse-tail-rec list nil))
+    (reduce nil (lambda (rev x) (cons x rev)) list))
 
-(define (reverse-tail-rec list rev)
-    (cond (null? list) rev
-          't (reverse-tail-rec (cdr list) (cons (car list) rev))))
+(define x 10)
 
-; (incorrectly) concatenate two lists
-(define (concat l1 l2)
-    (reverse 
-        (cond (null? l1) l2
-              't (concat (cdr l1) (cons (car l1) l2)))))
+(define (f) x)
+(define (g) ((lambda (x) (f)) 20))
 
-(main (concat '(1 2) '(3 4 5)))
+; ((lambda (x) (lambda () x)) 20)
+
+(main (g))
 
 )

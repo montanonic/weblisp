@@ -1,7 +1,9 @@
 (define rl (lambda () (load "src/rootlisp.ss")))
 
+; returns false if value is not found in environment
 (define lookup (lambda (val env)
     (cond
+        ((eq? env '()) #f)
         ((eq? (caar env) val) (cadar env))
         (#t (lookup val (cdr env))))))
 
@@ -126,21 +128,34 @@
         ;
         ; The invocation of a lambda: ((lambda (params*) body) args*). We'll
         ; want to replace the parameters in the body of the lambda with the
-        ; values from the arguments. One obvious way of achieving this is
-        ; through extending the environment throughout the invocation of the
-        ; lambda's body, yet doing this sublty leads to dynamic scoping. For
-        ; example, suppose we have (defun blah (x) (+ x 3))
-        ; ((label blah (lambda (x) (+ x 3))) ((lambda (x) (* x 5)) 9))
+        ; values from the arguments, but we'll also *only* replace parameters
+        ; used in the body if they are present without evaluation: this is what
+        ; it means to be lexically scoped: only parameters that are explicitly
+        ; visible within the scope of the lambda will be replaced, no other
+        ; effect will occur.
         ((eq? 'lambda (caar exp)) 
-            (eval (caddar exp) 
-                  ; zip the params up with the arguments and add them to the
-                  ; environment. But *also*, the arguments to the function
-                  ; themselves need to be evaluated, like with 
-                  ;
-                  ; ((lambda (x) (* x x)) (+ 3 4))
-                  (append (zip (cadar exp) 
-                               (eval-list (cdr exp) env))
-                           env)))
+            ; we simply pass our lambda expression and its arguments over to our
+            ; helper, which returns the lambda code body with lexical
+            ; replacements made. this code body can then itself be evaluated.
+            ; note that we *do* evaluate the arguments passed to the function
+            ; first, then make replacements (possibly using those values), and
+            ; then finally evaluate the code body
+            (pretty-print "exp:")
+            (pretty-print exp)
+            (pretty-print "replace-lambda-args:")
+            (pretty-print (replace-lambda-args (car exp) (cdr exp)))
+            (eval (replace-lambda-args (car exp) (cdr exp)) env)
+        )
+
+            ; OLD CODE
+            ; (eval (caddar exp) 
+            ;       ; zip the params up with the arguments and add them to the
+            ;       ; environment. But *also*, the arguments to the function
+            ;       ; themselves need to be evaluated
+            ;       (append (zip (cadar exp) 
+            ;                    (eval-list (cdr exp) env))
+            ;                env)))
+
         ; with a label we simply add the lambda to the environment so that it
         ; can be referred to, and then we evaluate the lambda in that
         ; environment using the arguments passed to label
@@ -148,6 +163,34 @@
         ; ((label name lambda) args*)
         ((eq? 'label (caar exp)) (eval (cons (caddar exp) (cdr exp))
                                        (cons (list (cadar exp) (caddar exp)) env)))
+    )
+))
+
+; for evaluating lambdas, we want to replace its arguments at call time with the
+; values that they should be replaced to
+(define replace-lambda-args (lambda (exp args)
+    ; (lambda (params*) code)
+    (replace-lambda-args-2
+        (zip (cadr exp) args)
+        (caddr exp))))
+
+; ltable is the lookup table that we can lookup a parameter in the code body of the lambda and get its argument value; the lookup table only contains lookups for the function params, and holds no other environment context
+(define replace-lambda-args-2 (lambda (ltable code)s
+    (cond
+        ((eq? '() code) '())
+        ((atom? (car code))
+            (cons
+                ; replace the atom with its lookup value if it exists, or keep it as-is otherwise
+                (if (lookup (car code) ltable) 
+                    (lookup (car code) ltable)
+                    (car code))
+                (replace-lambda-args-2 ltable (cdr code))))
+        ; otherwise the head of the code list is itself a list, so we want to recursively evaluate lookups for it and continue on
+        (#t (cons
+                ; recursively evaluate list
+                (replace-lambda-args-2 ltable (car code))
+                ; and add it back onto the rest of the list
+                (replace-lambda-args-2 ltable (cdr code))))
     )
 ))
 
