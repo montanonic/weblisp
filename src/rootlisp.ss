@@ -175,7 +175,7 @@
         (caddr exp))))
 
 ; ltable is the lookup table that we can lookup a parameter in the code body of the lambda and get its argument value; the lookup table only contains lookups for the function params, and holds no other environment context
-(define replace-lambda-args-2 (lambda (ltable code)s
+(define replace-lambda-args-2 (lambda (ltable code)
     (cond
         ((eq? '() code) '())
         ((atom? (car code))
