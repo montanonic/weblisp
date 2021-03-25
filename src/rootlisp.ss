@@ -119,9 +119,12 @@
                 ; we don't recognize the atom as a built-in, so look it up in
                 ; the environment (it will be whatever a user has labeled), and
                 ; evaluate again with a call to whatever was looked up
-                (#t (eval 
-                        (cons (lookup (car exp) env) (cdr exp)) 
-                        env))
+                (#t (let ((lookup-val (lookup (car exp) env)))
+                        (if lookup-val
+                            (eval 
+                                (cons lookup-val (cdr exp))
+                                env)
+                            `(lookup-failed-on-value: ,(car exp)))))
             )
         )
         ; the last part is for the matching of lambdas and define.
@@ -154,7 +157,7 @@
             ;       ; themselves need to be evaluated
             ;       (append (zip (cadar exp) 
             ;                    (eval-list (cdr exp) env))
-            ;                env)))
+            ;                env))
 
         ; with a label we simply add the lambda to the environment so that it
         ; can be referred to, and then we evaluate the lambda in that
@@ -163,11 +166,14 @@
         ; ((label name lambda) args*)
         ((eq? 'label (caar exp)) (eval (cons (caddar exp) (cdr exp))
                                        (cons (list (cadar exp) (caddar exp)) env)))
+
+        ; the first expression failed to match, so we try to evaluate it and then re-apply eval. this lets us use functions calls at the beginning of expressions, which so long as they compute something that is a valid eval form, will work.
+        (#t (eval (cons (eval (car exp) env) (cdr exp)) env))
     )
 ))
 
 ; for evaluating lambdas, we want to replace its arguments at call time with the
-; values that they should be replaced to
+; values that they should be replaced to. our implementation does not support shadowing local variables, but top-level variables *can* be shadowed.
 (define replace-lambda-args (lambda (exp args)
     ; (lambda (params*) code)
     (replace-lambda-args-2
@@ -178,12 +184,10 @@
 (define replace-lambda-args-2 (lambda (ltable code)
     (cond
         ((eq? '() code) '())
+        ((atom? code) (lookup-or-preserve code ltable))
         ((atom? (car code))
             (cons
-                ; replace the atom with its lookup value if it exists, or keep it as-is otherwise
-                (if (lookup (car code) ltable) 
-                    (lookup (car code) ltable)
-                    (car code))
+                (lookup-or-preserve (car code) ltable)
                 (replace-lambda-args-2 ltable (cdr code))))
         ; otherwise the head of the code list is itself a list, so we want to recursively evaluate lookups for it and continue on
         (#t (cons
@@ -193,6 +197,12 @@
                 (replace-lambda-args-2 ltable (cdr code))))
     )
 ))
+
+; replace the value with its lookup value if it exists, or keep it as-is otherwise
+(define lookup-or-preserve (lambda (value table)
+    (if (lookup value table)
+        (lookup value table)
+        value)))
 
 (define eval-list (lambda (exps env)
     ; construct a new list of the evaluated expressions

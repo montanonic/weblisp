@@ -54,4 +54,16 @@ For purposes of prototyping mutation in a "pure" language, a mutation macro migh
 
 (define (mutate (x 0) ())
 ```
-The semantics are simple enough
+The semantics are simple enough (uhh, are they though?)
+
+## Lexical Scope Part 2: What feature do we *really* want?
+
+So I was brainstorming out loud to Dee about how Python doesn't have closures but JavaScript does. This means in Python, everything global and top-level can be referred to within a function/method body, but you can't define and return a function from within a function that references any interior state. However, you could of course write a function that takes extra arguments corresponding to the local variables, and returns a function inside of itself that receives those values and then only requires the remaining ones, and then now we have local variable access within, right?
+
+Well, yes, but in a different way than JS. See, when this function is called, it is evaluated *at that point in time*, which means that the values of those variables at that time, and only at that time, are used. If they ever change later, that won't be reflected in our target function unless this variable-passing constructor function is called again.
+
+The real meat of closures is that they do allow for an active reference of the value as it currently is. In python this works just fine if that value is global, but again, it doesn't apply to local values. In this way, closures have often been used as ways of defining local environments, local states, to provide an alternative means to encapsulation than Object Oriented style. The author of the You Don't Know JS series talks a lot about the module pattern in JavaScript, which is largely just using a function as a way of grouping together common state and functionality and exposing a module-like interface. The differences between that pattern and using modern modules are slight, so while a useful pattern, it's worth recognizing that just implementing a module system semantically might be cleaner. When the interpreter for a language is easily hackable, we can truly just implement new features.
+
+# Functions, Macros, DSLs, or Interpreter Hacking?
+
+There are multiple levels in which we can solve abstraction problems in lispy, I'm curious about developing an intuition for when interpreter extension is preferrable to macros, and I expect to gain more perspective as I hack on it.

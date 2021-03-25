@@ -32,10 +32,10 @@
 (define (reverse list)
     (reduce nil (lambda (rev x) (cons x rev)) list))
 
-(define x 10)
+(define x (lambda () 10))
 
 (define (f) x)
-(define (g) ((lambda (x) (f)) 20))
+(define (g) ((lambda (x) (x)) 'x))
 
 ; ((lambda (x) (lambda () x)) 20)
 
