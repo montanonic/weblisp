@@ -68,13 +68,11 @@
                 (#t (write "ERRRORRRR"))
             ))
         ; ((main exp) ...)
-        ; add the main function to the body but continue evaluating the environment
+        ; add the main definition to the body but continue evaluating the environment
         ((eq? 'main (caar exps))
             (eval-program (cdr exps)
                           env
-                          (cadar exps)
-                        ; (main-body-to-function (cadar exps))
-            ))
+                          (cadar exps)))
         (#t 'error)
     )
 ))
@@ -115,7 +113,7 @@
                 ; (let (f (lambda (x) (* x x)))).
                 ((eq? 'lambda (car exp)) exp)
                 ; allow the language to itself call eval with a given environment, strictly evaluating both arguments first
-                ((eq? 'eval (car exp)) (eval (eval (cadr exp) env) (eval (caddr exp) env)))
+                ((eq? '__eval__ (car exp)) (eval (eval (cadr exp) env) (eval (caddr exp) env)))
                 ; we don't recognize the atom as a built-in, so look it up in
                 ; the environment (it will be whatever a user has labeled), and
                 ; evaluate again with a call to whatever was looked up
@@ -143,10 +141,10 @@
             ; note that we *do* evaluate the arguments passed to the function
             ; first, then make replacements (possibly using those values), and
             ; then finally evaluate the code body
-            (pretty-print "exp:")
-            (pretty-print exp)
-            (pretty-print "replace-lambda-args:")
-            (pretty-print (replace-lambda-args (car exp) (cdr exp)))
+            ; (pretty-print "exp:")
+            ; (pretty-print exp)
+            ; (pretty-print "replace-lambda-args:")
+            ; (pretty-print (replace-lambda-args (car exp) (cdr exp)))
             (eval (replace-lambda-args (car exp) (cdr exp)) env)
         )
 

@@ -15,10 +15,16 @@
 ; have (apply fn (arg1 ... argn))
 ; want (fn arg1 ... argn), and for it to be evaluated
 (define (apply f args)
-    (eval 
-        (rev-reduce (cons f nil) (lambda (s arg) (cons arg s)) args)
+    (__eval__ 
+        (apply-prep f args)
         ; evaluate the expression within the current environment
         __env__))
+
+(define (apply-prep f args)
+        ; make sure that we don't evaluate the arguments while constructing the lambda
+        (rev-reduce (cons f nil) 
+                    (lambda (s arg) (cons (quote arg) s)) 
+                    args))
 
 ; provide a function from (state elem) to state
 (define (reduce state f data)
@@ -32,13 +38,8 @@
 (define (reverse list)
     (reduce nil (lambda (rev x) (cons x rev)) list))
 
-(define x (lambda () 10))
 
-(define (f) x)
-(define (g) ((lambda (x) (x)) 'x))
 
-; ((lambda (x) (lambda () x)) 20)
-
-(main (g))
+(main (apply reverse '((1 2 3))))
 
 )
